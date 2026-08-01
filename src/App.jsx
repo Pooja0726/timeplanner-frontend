@@ -144,18 +144,16 @@ function App() {
   const modelsLoadedRef = useRef(false);
   const audioCtxRef = useRef(null);
 
+  // Pings the backend until it responds at all (even an error response counts
+  // as "awake" — we only care about detecting a sleeping Render instance
+  // here, not fetching real data, since we don't know the profileId yet).
   useEffect(() => {
     let cancelled = false;
 
     function pingServer(attempt) {
-      fetch(`${API_BASE_URL}/api/timelogs/today`)
-        .then((response) => {
-          if (!response.ok) throw new Error('Server not ready yet');
-          return response.json();
-        })
-        .then((data) => {
+      fetch(`${API_BASE_URL}/api/timelogs/today?profileId=0`)
+        .then(() => {
           if (cancelled) return;
-          setTodayLogs(data);
           setServerReady(true);
 
           const savedEmail = localStorage.getItem('paceEmail');
@@ -208,6 +206,7 @@ function App() {
           setOccupation(data.occupation);
           setProfileCreated(true);
           fetchTasks(data.profileId);
+          fetchTodayLogs(data.profileId);
         } else {
           setProfileCreated(false);
         }
@@ -234,6 +233,7 @@ function App() {
     setTasks([]);
     setSchedule([]);
     setSummary(null);
+    setTodayLogs([]);
   }
 
   function fetchTasks(currentProfileId) {
@@ -292,6 +292,7 @@ function App() {
         setProfileId(data.id);
         setProfileCreated(true);
         fetchTasks(data.id);
+        fetchTodayLogs(data.id);
       })
       .catch((error) => console.error('Error creating profile:', error));
   }
@@ -304,15 +305,20 @@ function App() {
       .catch((error) => console.error('Error generating schedule:', error));
   }
 
-  function fetchTodayLogs() {
-    fetch(`${API_BASE_URL}/api/timelogs/today`)
+  function fetchTodayLogs(currentProfileId) {
+    const id = currentProfileId ?? profileId;
+    if (!id) return;
+    fetch(`${API_BASE_URL}/api/timelogs/today?profileId=${id}`)
       .then((response) => response.json())
       .then((data) => setTodayLogs(data))
       .catch((error) => console.error('Error fetching logs:', error));
   }
 
   function startTimer() {
-    fetch(`${API_BASE_URL}/api/timelogs/start?category=${selectedCategory}`, { method: 'POST' })
+    if (!profileId) return;
+    fetch(`${API_BASE_URL}/api/timelogs/start?category=${selectedCategory}&profileId=${profileId}`, {
+      method: 'POST',
+    })
       .then((response) => response.json())
       .then((data) => {
         setActiveLogId(data.id);
