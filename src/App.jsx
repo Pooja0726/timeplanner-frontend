@@ -49,7 +49,66 @@ function buildConicGradient(categoryTotals, totalDayMinutes) {
   return `conic-gradient(${stops.join(', ')})`;
 }
 
+// --- Server wake-up screen -------------------------------------------------
+// Render's free tier spins the backend down after inactivity. The first
+// request after that can take a minute or two while it restarts. Rather than
+// let the app silently fail, we show this until the backend actually answers.
+function ServerWakingScreen({ attempt }) {
+  const message =
+    attempt <= 1
+      ? 'Connecting to the server…'
+      : 'Waking up the server — this can take up to a minute on our free hosting plan…';
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '20px',
+        padding: '24px',
+        textAlign: 'center',
+        fontFamily: 'inherit',
+      }}
+    >
+      <style>
+        {`
+          @keyframes pace-spin {
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          border: '4px solid #E3EAF6',
+          borderTopColor: '#4C7EF3',
+          animation: 'pace-spin 0.9s linear infinite',
+        }}
+      />
+      <div>
+        <div style={{ fontWeight: 600, fontSize: '1.05rem', marginBottom: 6 }}>
+          {message}
+        </div>
+        <div style={{ color: '#8A93A6', fontSize: '0.9rem', maxWidth: 360 }}>
+          Our free-tier server goes to sleep when nobody's using it. It's
+          starting back up now and this page will load automatically —
+          no need to refresh.
+        </div>
+      </div>
+    </div>
+  );
+}
+// ----------------------------------------------------------------------------
+
 function App() {
+  const [serverReady, setServerReady] = useState(false);
+  const [wakeAttempt, setWakeAttempt] = useState(1);
+
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const [emailInput, setEmailInput] = useState('');
@@ -78,12 +137,39 @@ function App() {
   const [todayLogs, setTodayLogs] = useState([]);
   const [summary, setSummary] = useState(null);
 
+  // On first load, ping the backend until it actually responds. This is what
+  // detects a sleeping Render instance and drives the loading screen above.
   useEffect(() => {
-    fetchTodayLogs();
-    const savedEmail = localStorage.getItem('paceEmail');
-    if (savedEmail) {
-      handleLogin(savedEmail);
+    let cancelled = false;
+
+    function pingServer(attempt) {
+      fetch(`${API_BASE_URL}/api/timelogs/today`)
+        .then((response) => {
+          if (!response.ok) throw new Error('Server not ready yet');
+          return response.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setTodayLogs(data);
+          setServerReady(true);
+
+          const savedEmail = localStorage.getItem('paceEmail');
+          if (savedEmail) {
+            handleLogin(savedEmail);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setWakeAttempt(attempt);
+          setTimeout(() => pingServer(attempt + 1), 4000);
+        });
     }
+
+    pingServer(1);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -249,6 +335,10 @@ function App() {
       .then((response) => response.json())
       .then((data) => setSummary(data))
       .catch((error) => console.error('Error fetching summary:', error));
+  }
+
+  if (!serverReady) {
+    return <ServerWakingScreen attempt={wakeAttempt} />;
   }
 
   return (
