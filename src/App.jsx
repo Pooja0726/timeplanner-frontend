@@ -360,7 +360,7 @@ function App() {
 
   async function ensureModelsLoaded() {
     if (modelsLoadedRef.current) return;
-    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    const MODEL_URL = '/models';
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
     modelsLoadedRef.current = true;
   }
