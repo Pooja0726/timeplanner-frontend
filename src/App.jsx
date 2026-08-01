@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 function formatMinutes(totalMinutes) {
   if (totalMinutes == null) return '';
   const hours = Math.floor(totalMinutes / 60);
@@ -94,7 +96,7 @@ function App() {
 
   function handleLogin(email) {
     setLoginError('');
-    fetch('http://localhost:8080/api/auth/login', {
+    fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -145,7 +147,7 @@ function App() {
 
   function fetchTasks(currentProfileId) {
     if (!currentProfileId) return;
-    fetch(`http://localhost:8080/api/tasks?profileId=${currentProfileId}`)
+    fetch(`${API_BASE_URL}/api/tasks?profileId=${currentProfileId}`)
       .then((response) => response.json())
       .then((data) => setTasks(data))
       .catch((error) => console.error('Error fetching tasks:', error));
@@ -159,7 +161,7 @@ function App() {
       priority: priority,
     };
 
-    fetch(`http://localhost:8080/api/tasks?profileId=${profileId}`, {
+    fetch(`${API_BASE_URL}/api/tasks?profileId=${profileId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTask),
@@ -176,7 +178,7 @@ function App() {
   }
 
   function deleteTask(id) {
-    fetch(`http://localhost:8080/api/tasks/${id}`, { method: 'DELETE' })
+    fetch(`${API_BASE_URL}/api/tasks/${id}`, { method: 'DELETE' })
       .then(() => fetchTasks(profileId))
       .catch((error) => console.error('Error deleting task:', error));
   }
@@ -189,7 +191,7 @@ function App() {
       occupation: occupation,
     };
 
-    fetch(`http://localhost:8080/api/profile?userId=${userId}`, {
+    fetch(`${API_BASE_URL}/api/profile?userId=${userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProfile),
@@ -205,21 +207,21 @@ function App() {
 
   function generateSchedule() {
     if (!profileId) return;
-    fetch(`http://localhost:8080/api/schedule/${profileId}`)
+    fetch(`${API_BASE_URL}/api/schedule/${profileId}`)
       .then((response) => response.json())
       .then((data) => setSchedule(data))
       .catch((error) => console.error('Error generating schedule:', error));
   }
 
   function fetchTodayLogs() {
-    fetch('http://localhost:8080/api/timelogs/today')
+    fetch(`${API_BASE_URL}/api/timelogs/today`)
       .then((response) => response.json())
       .then((data) => setTodayLogs(data))
       .catch((error) => console.error('Error fetching logs:', error));
   }
 
   function startTimer() {
-    fetch(`http://localhost:8080/api/timelogs/start?category=${selectedCategory}`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/api/timelogs/start?category=${selectedCategory}`, { method: 'POST' })
       .then((response) => response.json())
       .then((data) => {
         setActiveLogId(data.id);
@@ -230,7 +232,7 @@ function App() {
   }
 
   function stopTimer() {
-    fetch(`http://localhost:8080/api/timelogs/stop/${activeLogId}`, { method: 'PUT' })
+    fetch(`${API_BASE_URL}/api/timelogs/stop/${activeLogId}`, { method: 'PUT' })
       .then((response) => response.json())
       .then(() => {
         setActiveLogId(null);
@@ -243,7 +245,7 @@ function App() {
 
   function fetchSummary() {
     if (!profileId) return;
-    fetch(`http://localhost:8080/api/timelogs/summary/${profileId}`)
+    fetch(`${API_BASE_URL}/api/timelogs/summary/${profileId}`)
       .then((response) => response.json())
       .then((data) => setSummary(data))
       .catch((error) => console.error('Error fetching summary:', error));
