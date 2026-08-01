@@ -372,42 +372,48 @@ function App() {
   }
 
   async function startFocusGuard() {
-    setGuardStatus('loading');
-    try {
-      await ensureModelsLoaded();
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      missCountRef.current = 0;
-      setGuardStatus('watching');
-
-      detectionIntervalRef.current = setInterval(async () => {
-        if (!videoRef.current) return;
-        const detection = await faceapi.detectSingleFace(
-          videoRef.current,
-          new faceapi.TinyFaceDetectorOptions()
-        );
-
-        if (detection) {
-          missCountRef.current = 0;
-          setGuardStatus('watching');
-        } else {
-          missCountRef.current += 1;
-          if (missCountRef.current >= 3) {
-            setGuardStatus('alarm');
-            playAlarmBeep();
-          }
-        }
-      }, 2000);
-    } catch (error) {
-      console.error('Focus Guard camera error:', error);
-      setGuardStatus('off');
-      setGuardEnabled(false);
-      alert('Could not access your camera. Check browser permissions and try again.');
+  setGuardStatus('loading');
+  try {
+    await ensureModelsLoaded();
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    streamRef.current = stream;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
     }
+    missCountRef.current = 0;
+    setGuardStatus('watching');
+
+    // Larger inputSize + lower scoreThreshold makes detection more tolerant
+    // of head tilt/angle, so normal movement doesn't register as "absent".
+    const detectorOptions = new faceapi.TinyFaceDetectorOptions({
+      inputSize: 416,
+      scoreThreshold: 0.25,
+    });
+
+    detectionIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current) return;
+      const detection = await faceapi.detectSingleFace(videoRef.current, detectorOptions);
+
+      if (detection) {
+        missCountRef.current = 0;
+        setGuardStatus('watching');
+      } else {
+        missCountRef.current += 1;
+        // Require ~16 seconds of continuous no-detection (8 misses at 2s each)
+        // before alarming, so brief look-aways or head tilts don't trigger it.
+        if (missCountRef.current >= 8) {
+          setGuardStatus('alarm');
+          playAlarmBeep();
+        }
+      }
+    }, 2000);
+  } catch (error) {
+    console.error('Focus Guard camera error:', error);
+    setGuardStatus('off');
+    setGuardEnabled(false);
+    alert('Could not access your camera. Check browser permissions and try again.');
   }
+}
 
   function stopFocusGuard() {
     if (detectionIntervalRef.current) {
