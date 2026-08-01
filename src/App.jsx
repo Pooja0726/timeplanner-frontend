@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import * as faceapi from 'face-api.js';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 function formatMinutes(totalMinutes) {
   if (totalMinutes == null) return '';
   const hours = Math.floor(totalMinutes / 60);
@@ -48,7 +50,63 @@ function buildConicGradient(categoryTotals, totalDayMinutes) {
   return `conic-gradient(${stops.join(', ')})`;
 }
 
+// --- Server wake-up screen -------------------------------------------------
+function ServerWakingScreen({ attempt }) {
+  const message =
+    attempt <= 1
+      ? 'Connecting to the server…'
+      : 'Waking up the server — this can take up to a minute on our free hosting plan…';
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '20px',
+        padding: '24px',
+        textAlign: 'center',
+        fontFamily: 'inherit',
+      }}
+    >
+      <style>
+        {`
+          @keyframes pace-spin {
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          border: '4px solid #E3EAF6',
+          borderTopColor: '#4C7EF3',
+          animation: 'pace-spin 0.9s linear infinite',
+        }}
+      />
+      <div>
+        <div style={{ fontWeight: 600, fontSize: '1.05rem', marginBottom: 6 }}>
+          {message}
+        </div>
+        <div style={{ color: '#8A93A6', fontSize: '0.9rem', maxWidth: 360 }}>
+          Our free-tier server goes to sleep when nobody's using it. It's
+          starting back up now and this page will load automatically —
+          no need to refresh.
+        </div>
+      </div>
+    </div>
+  );
+}
+// ----------------------------------------------------------------------------
+
 function App() {
+  const [serverReady, setServerReady] = useState(false);
+  const [wakeAttempt, setWakeAttempt] = useState(1);
+
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const [emailInput, setEmailInput] = useState('');
@@ -77,9 +135,8 @@ function App() {
   const [todayLogs, setTodayLogs] = useState([]);
   const [summary, setSummary] = useState(null);
 
-  // --- Focus Guard (camera presence monitor) ---
   const [guardEnabled, setGuardEnabled] = useState(false);
-  const [guardStatus, setGuardStatus] = useState('off'); // 'off' | 'loading' | 'watching' | 'alarm'
+  const [guardStatus, setGuardStatus] = useState('off');
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectionIntervalRef = useRef(null);
@@ -88,11 +145,36 @@ function App() {
   const audioCtxRef = useRef(null);
 
   useEffect(() => {
-    fetchTodayLogs();
-    const savedEmail = localStorage.getItem('paceEmail');
-    if (savedEmail) {
-      handleLogin(savedEmail);
+    let cancelled = false;
+
+    function pingServer(attempt) {
+      fetch(`${API_BASE_URL}/api/timelogs/today`)
+        .then((response) => {
+          if (!response.ok) throw new Error('Server not ready yet');
+          return response.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setTodayLogs(data);
+          setServerReady(true);
+
+          const savedEmail = localStorage.getItem('paceEmail');
+          if (savedEmail) {
+            handleLogin(savedEmail);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setWakeAttempt(attempt);
+          setTimeout(() => pingServer(attempt + 1), 4000);
+        });
     }
+
+    pingServer(1);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -105,7 +187,7 @@ function App() {
 
   function handleLogin(email) {
     setLoginError('');
-    fetch('http://localhost:8080/api/auth/login', {
+    fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -156,7 +238,7 @@ function App() {
 
   function fetchTasks(currentProfileId) {
     if (!currentProfileId) return;
-    fetch(`http://localhost:8080/api/tasks?profileId=${currentProfileId}`)
+    fetch(`${API_BASE_URL}/api/tasks?profileId=${currentProfileId}`)
       .then((response) => response.json())
       .then((data) => setTasks(data))
       .catch((error) => console.error('Error fetching tasks:', error));
@@ -170,7 +252,7 @@ function App() {
       priority: priority,
     };
 
-    fetch(`http://localhost:8080/api/tasks?profileId=${profileId}`, {
+    fetch(`${API_BASE_URL}/api/tasks?profileId=${profileId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTask),
@@ -187,7 +269,7 @@ function App() {
   }
 
   function deleteTask(id) {
-    fetch(`http://localhost:8080/api/tasks/${id}`, { method: 'DELETE' })
+    fetch(`${API_BASE_URL}/api/tasks/${id}`, { method: 'DELETE' })
       .then(() => fetchTasks(profileId))
       .catch((error) => console.error('Error deleting task:', error));
   }
@@ -200,7 +282,7 @@ function App() {
       occupation: occupation,
     };
 
-    fetch(`http://localhost:8080/api/profile?userId=${userId}`, {
+    fetch(`${API_BASE_URL}/api/profile?userId=${userId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProfile),
@@ -216,21 +298,21 @@ function App() {
 
   function generateSchedule() {
     if (!profileId) return;
-    fetch(`http://localhost:8080/api/schedule/${profileId}`)
+    fetch(`${API_BASE_URL}/api/schedule/${profileId}`)
       .then((response) => response.json())
       .then((data) => setSchedule(data))
       .catch((error) => console.error('Error generating schedule:', error));
   }
 
   function fetchTodayLogs() {
-    fetch('http://localhost:8080/api/timelogs/today')
+    fetch(`${API_BASE_URL}/api/timelogs/today`)
       .then((response) => response.json())
       .then((data) => setTodayLogs(data))
       .catch((error) => console.error('Error fetching logs:', error));
   }
 
   function startTimer() {
-    fetch(`http://localhost:8080/api/timelogs/start?category=${selectedCategory}`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/api/timelogs/start?category=${selectedCategory}`, { method: 'POST' })
       .then((response) => response.json())
       .then((data) => {
         setActiveLogId(data.id);
@@ -241,7 +323,7 @@ function App() {
   }
 
   function stopTimer() {
-    fetch(`http://localhost:8080/api/timelogs/stop/${activeLogId}`, { method: 'PUT' })
+    fetch(`${API_BASE_URL}/api/timelogs/stop/${activeLogId}`, { method: 'PUT' })
       .then((response) => response.json())
       .then(() => {
         setActiveLogId(null);
@@ -254,13 +336,12 @@ function App() {
 
   function fetchSummary() {
     if (!profileId) return;
-    fetch(`http://localhost:8080/api/timelogs/summary/${profileId}`)
+    fetch(`${API_BASE_URL}/api/timelogs/summary/${profileId}`)
       .then((response) => response.json())
       .then((data) => setSummary(data))
       .catch((error) => console.error('Error fetching summary:', error));
   }
 
-  // --- Focus Guard: plays a short beep using the Web Audio API (no audio file needed) ---
   function playAlarmBeep() {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -277,7 +358,6 @@ function App() {
     oscillator.stop(ctx.currentTime + 0.35);
   }
 
-  // Loads the face detection model once, only when Focus Guard is first turned on
   async function ensureModelsLoaded() {
     if (modelsLoadedRef.current) return;
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
@@ -285,7 +365,6 @@ function App() {
     modelsLoadedRef.current = true;
   }
 
-  // Starts the webcam and the detection loop
   async function startFocusGuard() {
     setGuardStatus('loading');
     try {
@@ -324,7 +403,6 @@ function App() {
     }
   }
 
-  // Stops the webcam and the detection loop, releasing the camera fully
   function stopFocusGuard() {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
@@ -338,7 +416,6 @@ function App() {
     setGuardStatus('off');
   }
 
-  // Focus Guard only actually runs while BOTH the toggle is on AND a timer is running
   useEffect(() => {
     if (guardEnabled && activeLogId) {
       startFocusGuard();
@@ -346,8 +423,12 @@ function App() {
       stopFocusGuard();
     }
     return () => stopFocusGuard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guardEnabled, activeLogId]);
 
+  if (!serverReady) {
+    return <ServerWakingScreen attempt={wakeAttempt} />;
+  }
 
   return (
     <div className="app-shell">
