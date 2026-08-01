@@ -621,3 +621,140 @@ input:focus, select:focus {
   font-size: 15.5px;
   margin-top: 6px;
 }
+
+/* ---------- Focus Guard ---------- */
+
+.guard-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.guard-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.guard-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.guard-subtitle {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.guard-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 10px 0 0;
+}
+
+.guard-privacy-note {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  opacity: 0.75;
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--line);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.switch input:checked + .switch-slider {
+  background: linear-gradient(135deg, var(--blue), var(--pink));
+}
+
+.switch input:checked + .switch-slider::before {
+  transform: translateX(18px);
+}
+
+/* Camera preview */
+.guard-preview {
+  position: relative;
+  margin-top: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.guard-preview.guard-alarm {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 4px rgba(241, 72, 126, 0.18);
+  animation: guard-pulse 1s ease-in-out infinite;
+}
+
+@keyframes guard-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(241, 72, 126, 0.18); }
+  50% { box-shadow: 0 0 0 8px rgba(241, 72, 126, 0.3); }
+}
+
+.guard-video {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+  transform: scaleX(-1); /* mirror, feels natural like a real camera preview */
+  background: var(--ink);
+}
+
+.guard-status-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(23, 33, 60, 0.7);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.guard-alarm .guard-status-badge {
+  background: var(--pink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guard-preview.guard-alarm { animation: none; }
+}
